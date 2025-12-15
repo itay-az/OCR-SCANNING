@@ -1,0 +1,6 @@
+PyQt5==5.15.10
+PyMuPDF==1.23.8
+pytesseract==0.3.10
+Pillow==10.1.0
+pywin32>=306
+
