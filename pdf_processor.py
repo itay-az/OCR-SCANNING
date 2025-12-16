@@ -50,6 +50,28 @@ def is_valid_israeli_id(id_str):
     # בדיקה אם הסכום מתחלק ב-10 ללא שארית
     return (total % 10) == 0
 
+def normalize_id_number(id_str):
+    """
+    מנרמל מספר תעודת זהות - מוסיף 0 מוביל אם המספר הוא 8 ספרות.
+    מחזיר תמיד מספר של 9 ספרות.
+    """
+    # ניקוי רווחים ומקפים אם השתרבבו
+    id_str = str(id_str).strip().replace('-', '')
+    
+    if not id_str.isdigit():
+        return id_str  # אם זה לא מספר, מחזיר כפי שהוא
+    
+    # אם המספר הוא 8 ספרות, מוסיף 0 בהתחלה
+    if len(id_str) == 8:
+        return '0' + id_str
+    
+    # אם המספר הוא 9 ספרות, מחזיר כפי שהוא
+    if len(id_str) == 9:
+        return id_str
+    
+    # אחרת מחזיר כפי שהוא (לא אמור לקרות אם המספר תקף)
+    return id_str
+
 def extract_text_from_pdf(pdf_path):
     """מנסה לחלץ טקסט ישירות מקובץ PDF searchable"""
     try:
@@ -134,7 +156,9 @@ def find_regex_match(text, regex_pattern):
             # בדיקה: האם זה מספר תקין מבחינת ספרת ביקורת?
             # הערה: אם אתה מחפש משהו שאינו ת"ז (למשל סתם קטלוג), אפשר לבטל את הבדיקה הזו
             if is_valid_israeli_id(candidate):
-                return candidate
+                # נרמול המספר - הוספת 0 מוביל אם המספר הוא 8 ספרות
+                normalized = normalize_id_number(candidate)
+                return normalized
             else:
                 print(f"דלג על מספר לא תקין (ספרת ביקורת שגויה): {candidate}")
                 
@@ -309,6 +333,10 @@ def process_folder_with_destination(source_folder, destination_folder, regex_pat
                 log_callback(f"   מחפש תעודת זהות...")
             
             match_value = find_regex_match(text, regex_pattern)
+            
+            # נרמול המספר (הוספת 0 מוביל אם הוא 8 ספרות) לפני שימוש
+            if match_value:
+                match_value = normalize_id_number(match_value)
             
             # בדיקה מפורשת נוספת של תקינות תעודת זהות
             if match_value:

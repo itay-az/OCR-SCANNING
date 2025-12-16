@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(regex_layout)
         
         # --- הוסף את השורה הזו כאן: ---
-        self.regex_edit.setText(r'\b\d{9}\b')  # הגדרת ברירת מחדל לתעודת זהות
+        self.regex_edit.setText(r'\b\d{8,9}\b')  # הגדרת ברירת מחדל לתעודת זהות (תמיכה ב-8 ו-9 ספרות)
         # -----------------------------
         
         # כפתור הרצה
