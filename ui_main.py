@@ -16,9 +16,10 @@ class ProcessingThread(QThread):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(dict)
     
-    def __init__(self, folder_path, regex_pattern):
+    def __init__(self, source_folder, destination_folder, regex_pattern):
         super().__init__()
-        self.folder_path = folder_path
+        self.source_folder = source_folder
+        self.destination_folder = destination_folder
         self.regex_pattern = regex_pattern
     
     def run(self):
@@ -26,8 +27,9 @@ class ProcessingThread(QThread):
         def log_callback(message):
             self.log_signal.emit(message)
         
-        stats = pdf_processor.process_folder(
-            self.folder_path,
+        stats = pdf_processor.process_folder_with_destination(
+            self.source_folder,
+            self.destination_folder,
             self.regex_pattern,
             log_callback
         )
@@ -66,7 +68,8 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.selected_folder = ""
+        self.selected_folder = ""  # תיקיית יעד (לסריקה)
+        self.source_folder = ""  # תיקיית מקור (לעיבוד)
         self.processing_thread = None
         self.scan_thread = None
         self.init_ui()
@@ -94,20 +97,35 @@ class MainWindow(QMainWindow):
         title_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title_label)
         
-        # בחירת תיקייה
-        folder_layout = QHBoxLayout()
-        folder_label = QLabel("תיקייה:")
-        folder_label.setMinimumWidth(80)
+        # בחירת תיקיית מקור
+        source_folder_layout = QHBoxLayout()
+        source_folder_label = QLabel("תיקיית מקור:")
+        source_folder_label.setMinimumWidth(80)
+        self.source_folder_path_edit = QLineEdit()
+        self.source_folder_path_edit.setPlaceholderText("בחר תיקיית מקור...")
+        self.source_folder_path_edit.setReadOnly(True)
+        browse_source_button = QPushButton("בחר תיקיית מקור")
+        browse_source_button.clicked.connect(self.browse_source_folder)
+        
+        source_folder_layout.addWidget(source_folder_label)
+        source_folder_layout.addWidget(self.source_folder_path_edit)
+        source_folder_layout.addWidget(browse_source_button)
+        main_layout.addLayout(source_folder_layout)
+        
+        # בחירת תיקיית יעד
+        destination_folder_layout = QHBoxLayout()
+        destination_folder_label = QLabel("תיקיית יעד:")
+        destination_folder_label.setMinimumWidth(80)
         self.folder_path_edit = QLineEdit()
-        self.folder_path_edit.setPlaceholderText("בחר תיקייה...")
+        self.folder_path_edit.setPlaceholderText("בחר תיקיית יעד...")
         self.folder_path_edit.setReadOnly(True)
-        browse_button = QPushButton("בחר תיקייה")
+        browse_button = QPushButton("בחר תיקיית יעד")
         browse_button.clicked.connect(self.browse_folder)
         
-        folder_layout.addWidget(folder_label)
-        folder_layout.addWidget(self.folder_path_edit)
-        folder_layout.addWidget(browse_button)
-        main_layout.addLayout(folder_layout)
+        destination_folder_layout.addWidget(destination_folder_label)
+        destination_folder_layout.addWidget(self.folder_path_edit)
+        destination_folder_layout.addWidget(browse_button)
+        main_layout.addLayout(destination_folder_layout)
         
         # שדה REGEX
         regex_layout = QHBoxLayout()
@@ -184,9 +202,10 @@ class MainWindow(QMainWindow):
         
         # הודעת ברוכים הבאים
         self.log_text.append("ברוכים הבאים לכלי שינוי שמות קבצי PDF")
-        self.log_text.append("1. בחר תיקייה המכילה קבצי PDF (או לשמירת קבצים מסריקה)")
-        self.log_text.append("2. הזן תבנית REGEX לחיפוש")
-        self.log_text.append("3. לחץ על 'הרץ עיבוד' לעיבוד תיקייה או 'סרוק מסמך' לסריקה ישירה\n")
+        self.log_text.append("1. בחר תיקיית מקור (מכילה קבצי PDF searchable)")
+        self.log_text.append("2. בחר תיקיית יעד (לשמירת הקבצים המסודרים)")
+        self.log_text.append("3. הזן תבנית REGEX לחיפוש")
+        self.log_text.append("4. לחץ על 'הרץ עיבוד' לעיבוד תיקייה או 'סרוק מסמך' לסריקה ישירה\n")
     
     def check_tesseract_on_startup(self):
         """בודק זמינות Tesseract OCR בהתחלה"""
@@ -198,26 +217,47 @@ class MainWindow(QMainWindow):
             self.log_text.append("⚠ Tesseract OCR לא נמצא - רק PDFs searchable יעובדו\n")
             self.log_text.append("  (להורדת Tesseract: https://github.com/UB-Mannheim/tesseract/wiki)\n")
     
-    def browse_folder(self):
-        """פתיחת דיאלוג לבחירת תיקייה"""
+    def browse_source_folder(self):
+        """פתיחת דיאלוג לבחירת תיקיית מקור"""
         folder = QFileDialog.getExistingDirectory(
             self,
-            "בחר תיקייה",
+            "בחר תיקיית מקור",
+            "",
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        if folder:
+            self.source_folder = folder
+            self.source_folder_path_edit.setText(folder)
+            self.log_text.append(f"נבחרה תיקיית מקור: {folder}\n")
+    
+    def browse_folder(self):
+        """פתיחת דיאלוג לבחירת תיקיית יעד"""
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "בחר תיקיית יעד",
             "",
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
         if folder:
             self.selected_folder = folder
             self.folder_path_edit.setText(folder)
-            self.log_text.append(f"נבחרה תיקייה: {folder}\n")
+            self.log_text.append(f"נבחרה תיקיית יעד: {folder}\n")
     
     def validate_inputs(self):
         """בדיקת תקינות הקלט"""
+        if not self.source_folder:
+            QMessageBox.warning(
+                self,
+                "שגיאה",
+                "אנא בחר תיקיית מקור"
+            )
+            return False
+        
         if not self.selected_folder:
             QMessageBox.warning(
                 self,
                 "שגיאה",
-                "אנא בחר תיקייה"
+                "אנא בחר תיקיית יעד"
             )
             return False
         
@@ -257,12 +297,21 @@ class MainWindow(QMainWindow):
             )
             return
         
-        # בדיקת הרשאות כתיבה לתיקייה
+        # בדיקת הרשאות כתיבה לתיקיית יעד
         if not os.access(self.selected_folder, os.W_OK):
             QMessageBox.warning(
                 self,
                 "שגיאת הרשאות",
-                "אין הרשאות כתיבה לתיקייה שנבחרה. אנא בחר תיקייה אחרת."
+                "אין הרשאות כתיבה לתיקיית היעד שנבחרה. אנא בחר תיקייה אחרת."
+            )
+            return
+        
+        # בדיקת הרשאות קריאה מתיקיית מקור
+        if not os.access(self.source_folder, os.R_OK):
+            QMessageBox.warning(
+                self,
+                "שגיאת הרשאות",
+                "אין הרשאות קריאה מתיקיית המקור שנבחרה. אנא בחר תיקייה אחרת."
             )
             return
         
@@ -278,6 +327,7 @@ class MainWindow(QMainWindow):
         # יצירת thread לעיבוד
         regex_pattern = self.regex_edit.text().strip()
         self.processing_thread = ProcessingThread(
+            self.source_folder,
             self.selected_folder,
             regex_pattern
         )
