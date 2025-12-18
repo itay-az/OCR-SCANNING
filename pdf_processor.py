@@ -4,6 +4,7 @@
 import os
 import re
 import shutil
+from datetime import datetime
 import fitz  # PyMuPDF
 import importlib.util, pkgutil
 if not hasattr(pkgutil, "find_loader"):
@@ -264,6 +265,16 @@ def get_next_file_number(destination_folder, id_number):
     
     return max_number + 1
 
+def generate_scan_folder_name():
+    """
+    יוצר שם תיקיית scan בפורמט: scan[dd-mm-yy]_[HHmm]
+    """
+    now = datetime.now()
+    date_str = now.strftime("%d-%m-%y")
+    time_str = now.strftime("%H%M")
+    folder_name = f"scan{date_str}_{time_str}"
+    return folder_name
+
 def process_folder_with_destination(source_folder, destination_folder, regex_pattern, log_callback=None):
     """
     עיבוד תיקיית מקור והעתקת קבצים לתיקיית יעד.
@@ -297,6 +308,9 @@ def process_folder_with_destination(source_folder, destination_folder, regex_pat
             log_callback(f"שגיאה בקריאת תיקיית המקור: {e}")
         stats['errors'].append(f"שגיאה בקריאת תיקיית המקור: {e}")
         return stats
+    
+    # שמירת הרשימה המקורית של קבצים לפני העיבוד
+    original_pdf_files = pdf_files.copy()
     
     if log_callback:
         log_callback(f"נמצאו {len(pdf_files)} קבצי PDF לעיבוד\n")
@@ -421,6 +435,32 @@ def process_folder_with_destination(source_folder, destination_folder, regex_pat
         log_callback(f"שגיאות: {stats['failed_count']}")
         if stats['errors']:
             log_callback(f"פרטי שגיאות: {len(stats['errors'])}")
+    
+    # העברת קבצים לתיקיית scan
+    if original_pdf_files:
+        scan_folder_name = generate_scan_folder_name()
+        scan_folder_path = os.path.join(source_folder, scan_folder_name)
+        try:
+            os.makedirs(scan_folder_path, exist_ok=True)
+            if log_callback:
+                log_callback(f"\nמעביר קבצים לתיקיית scan: {scan_folder_name}")
+            
+            for pdf_file in original_pdf_files:
+                source_path = os.path.join(source_folder, pdf_file)
+                if os.path.exists(source_path):  # בדיקה שהקובץ עדיין קיים
+                    dest_path = os.path.join(scan_folder_path, pdf_file)
+                    try:
+                        shutil.move(source_path, dest_path)
+                        if log_callback:
+                            log_callback(f"   → {pdf_file} הועבר ל-{scan_folder_name}/")
+                    except Exception as e:
+                        if log_callback:
+                            log_callback(f"   ✗ שגיאה בהעברת {pdf_file}: {e}")
+                        stats['errors'].append(f"שגיאה בהעברת {pdf_file}: {e}")
+        except Exception as e:
+            if log_callback:
+                log_callback(f"✗ שגיאה ביצירת תיקיית scan: {e}")
+            stats['errors'].append(f"שגיאה ביצירת תיקיית scan: {e}")
     
     return stats
 
